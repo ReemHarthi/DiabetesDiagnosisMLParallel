@@ -1,0 +1,82 @@
+#THREADING CODE:
+import time
+import numpy as np
+import pandas as pd
+from keras.models import Sequential
+from keras.layers import Dense
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import threading
+
+np.random.seed(7)
+
+# Function to fit the model and calculate evaluation metrics
+def fit_model(X, Y, return_dict):
+    start_time = time.time()
+
+    # Create model
+    model = Sequential()
+    model.add(Dense(12, input_dim=8, activation='relu'))
+    model.add(Dense(8, activation='relu'))
+    model.add(Dense(1, activation='sigmoid'))
+
+    # Compile model
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+    # Fit the model
+    model.fit(X, Y, epochs=150, batch_size=10, verbose=0)
+
+    # Predict the probabilities
+    y_pred_prob = model.predict(X)
+    # Convert probabilities to binary predictions
+    y_pred = np.round(y_pred_prob).flatten()
+
+    # Calculate evaluation metrics
+    accuracy = accuracy_score(Y, y_pred)
+    precision = precision_score(Y, y_pred)
+    recall = recall_score(Y, y_pred)
+    f1 = f1_score(Y, y_pred)
+
+    # Calculate the execution time
+    execution_time = time.time() - start_time
+
+    # Store the results in the return dictionary
+    return_dict['accuracy'] = accuracy
+    return_dict['execution_time'] = execution_time
+    return_dict['precision'] = precision
+    return_dict['recall'] = recall
+    return_dict['f1'] = f1
+
+# Load dataset
+dataset = pd.read_csv("/content/drive/MyDrive/data/diabetes.csv")
+
+X = dataset.loc[:, ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']]
+Y = dataset.loc[:, 'Outcome']
+
+# Create a return dictionary to store the results
+return_dict = {}
+
+# Create a lock to synchronize access to the return dictionary
+lock = threading.Lock()
+
+# Function to execute the fitting process
+def fitting_process():
+    # Fit the model and calculate evaluation metrics
+    fit_model(X, Y, return_dict)
+
+    # Acquire the lock to access the return dictionary
+    lock.acquire()
+
+    # Print the results
+    print("Accuracy: %.2f%%" % (return_dict['accuracy'] * 100))
+    print("Execution time: %.2f seconds" % return_dict['execution_time'])
+    print("Precision: %.2f" % return_dict['precision'])
+    print("Recall: %.2f" % return_dict['recall'])
+    print("F1-Score: %.2f" % return_dict['f1'])
+
+    # Release the lock
+    lock.release()
+
+# Create a thread for the fitting process
+fitting_thread = threading.Thread(target=fitting_process)
+fitting_thread.start()
+fitting_thread.join()
